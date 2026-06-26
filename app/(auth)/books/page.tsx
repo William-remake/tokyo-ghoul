@@ -9,6 +9,11 @@ import { Modal, Form, Input, InputNumber, QRCode, Button, Select} from 'antd';
 const PRICE_PER_BOOK = 346476;
 const COMBO_PRICE = 5543616;
 
+// Đồng bộ giá TCG mới để hệ thống xử lý chính xác khi tính toán tổng tiền
+const PRICE_TCG_BOX = 2300000;
+const PRICE_TCG_DECK = 846255;
+const PRICE_TCG_PACK = 200000;
+
 interface Book {
   id: number | string;
   title: string;
@@ -83,19 +88,33 @@ export default function BooksPage() {
   };
 
   const onValuesChange = (changedValues: Partial<OrderFormValues>, allValues: OrderFormValues) => {
-    const basePrice = selectedBook?.isCombo ? COMBO_PRICE : PRICE_PER_BOOK;
-    if (changedValues.quantity !== undefined) {
+    const isCurrentCombo = allValues.volume === "FULL COMBO VOL 1-16";
+    
+    // Cập nhật cấu hình tính toán động đồng bộ giá TCG khi người dùng thay đổi item trong Select Dropdown của Modal
+    let basePrice = isCurrentCombo ? COMBO_PRICE : PRICE_PER_BOOK;
+    if (allValues.volume === "UNION ARENA BOOSTER BOX") basePrice = PRICE_TCG_BOX;
+    if (allValues.volume === "UNION ARENA STARTER DECK") basePrice = PRICE_TCG_DECK;
+    if (allValues.volume === "UNION ARENA SINGLE PACK") basePrice = PRICE_TCG_PACK;
+
+    if (changedValues.quantity !== undefined || changedValues.volume !== undefined) {
       setTotalAmount(allValues.quantity * basePrice);
     }
   };
-
-  const handleFinish = (values: OrderFormValues) => {
-    const emailTo = "daongoc.phuongmy308@gmail.com"; 
+const handleFinish = (values: OrderFormValues) => {
+    const emailTo = "daongoc.phuongmy308@gmail.com";
     const subject = encodeURIComponent(`Order: ${values.volume}`);
+
     const body = encodeURIComponent(
-      `Họ tên: ${values.name}\nĐịa chỉ: ${values.address}\nSĐT: ${values.phone}\nSản phẩm: ${values.volume}\nSố lượng: ${values.quantity}\nTổng: ${totalAmount.toLocaleString()} VND`
+      `Name: ${values.name}\n` +
+      `Address: ${values.address}\n` +
+      `Phone number: ${values.phone}\n` +
+      `Products: ${values.volume}\n` +
+      `Quantity: ${values.quantity}\n` +
+      `Sum: ${totalAmount.toLocaleString()} VND`
     );
+
     window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
+
     setIsInfoOpen(false);
     form.resetFields();
   };
@@ -163,17 +182,18 @@ export default function BooksPage() {
         </Link>
       </div>
 
-      {/* --- MODALS --- */}
+      {/* Modal 1: Confirm */}
       <Modal title={null} open={isConfirmOpen} onCancel={() => setIsConfirmOpen(false)} footer={null} centered width={300}>
         <div className="text-center p-4">
           <h3 className="text-xl font-bold mb-6 italic uppercase text-black">Are you sure?</h3>
           <div className="flex justify-center gap-4">
-            <button onClick={handleConfirmYes} className="px-6 py-2 bg-[#df2531] text-white font-bold rounded-md uppercase">YES</button>
-            <button onClick={() => setIsConfirmOpen(false)} className="px-6 py-2 bg-gray-200 font-bold rounded-md uppercase">NO</button>
+            <button onClick={handleConfirmYes} className="px-6 py-2 bg-[#df2531] text-white font-bold rounded-md">YES</button>
+            <button onClick={() => setIsConfirmOpen(false)} className="px-6 py-2 bg-gray-200 font-bold rounded-md">NO</button>
           </div>
         </div>
       </Modal>
 
+      {/* Modal 2: Info & Payment */}
       <Modal
         title={<span className="text-2xl font-black italic uppercase text-black">Order Information</span>}
         open={isInfoOpen}
@@ -194,12 +214,19 @@ export default function BooksPage() {
               <Input placeholder="Your phone number" />
             </Form.Item>
             <div className="flex gap-4">
-              <Form.Item name="volume" label="Select Vol" className="flex-1">
+              <Form.Item name="volume" label="Select Item" className="flex-1">
                 <Select>
+                  <Select.OptGroup label="Manga Books">
                     <Select.Option value="FULL COMBO VOL 1-16">Combo Vol 1-16</Select.Option>
-                  {[...Array(16)].map((_, i) => (
-                    <Select.Option key={i+1} value={`Tokyo Ghoul RE Vol ${i+1}`}>Vol {i+1}</Select.Option>
-                  ))}
+                    {[...Array(16)].map((_, i) => (
+                      <Select.Option key={i + 1} value={`Tokyo Ghoul RE Vol ${i + 1}`}>Vol {i + 1}</Select.Option>
+                    ))}
+                  </Select.OptGroup>
+                  <Select.OptGroup label="Trading Card Game">
+                    <Select.Option value="UNION ARENA BOOSTER BOX">Booster Box</Select.Option>
+                    <Select.Option value="UNION ARENA STARTER DECK">Starter Deck</Select.Option>
+                    <Select.Option value="UNION ARENA SINGLE PACK">Single Pack</Select.Option>
+                  </Select.OptGroup>
                 </Select>
               </Form.Item>
               <Form.Item name="quantity" label="Quantity" className="w-24">
@@ -210,7 +237,7 @@ export default function BooksPage() {
               <p className="text-sm text-gray-500">Total Price:</p>
               <p className="text-2xl font-black text-[#df2531]">{totalAmount.toLocaleString()} VND</p>
             </div>
-            <Button type="primary" htmlType="submit" block className="h-12 font-bold text-lg uppercase bg-[#df2531] border-[#df2531] hover:bg-black hover:border-black">
+            <Button type="primary" htmlType="submit" block className="h-12 font-bold text-lg uppercase">
               Confirm & Open Email
             </Button>
           </Form>

@@ -15,12 +15,19 @@ import 'swiper/css/pagination';
 const PRICE_PER_BOOK = 346476;
 const COMBO_PRICE = 5543616; // Giá cho Combo 16 tập
 
+// Định nghĩa giá cho các sản phẩm TCG mới
+const PRICE_TCG_BOX = 2300000;
+const PRICE_TCG_DECK = 846255;
+const PRICE_TCG_PACK = 200000;
+
 // 1. Định nghĩa kiểu dữ liệu cho Book
 interface Book {
   id: number | string;
   title: string;
   image: string | string[]; // Chấp nhận cả chuỗi hoặc mảng chuỗi cho combo
   isCombo?: boolean;
+  isTCG?: boolean;       // Đánh dấu sản phẩm thuộc nhóm TCG
+  tcgPrice?: number;     // Giá riêng cho từng loại sản phẩm TCG
 }
 
 // 2. Định nghĩa kiểu dữ liệu cho Form Values
@@ -35,7 +42,7 @@ interface OrderFormValues {
 export default function GamePage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState<boolean>(false);
   const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
-  
+
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [form] = Form.useForm<OrderFormValues>();
   const [totalAmount, setTotalAmount] = useState<number>(PRICE_PER_BOOK);
@@ -64,9 +71,20 @@ export default function GamePage() {
     { id: 4, title: "Tokyo Ghoul RE Vol 4", image: "/vol 4.jpg" },
   ];
 
+  // Danh sách sản phẩm TCG mới không sử dụng ảnh xoay vòng combo
+  const tcgList: Book[] = [
+    { id: "tcg-box", title: "UNION ARENA BOOSTER BOX", image: "/booster box.jpg", isTCG: true, tcgPrice: PRICE_TCG_BOX },
+    { id: "tcg-deck", title: "UNION ARENA STARTER DECK", image: "/starter deck.png", isTCG: true, tcgPrice: PRICE_TCG_DECK },
+    { id: "tcg-pack", title: "UNION ARENA SINGLE PACK", image: "/single pack.jpg", isTCG: true, tcgPrice: PRICE_TCG_PACK },
+  ];
+
   const handleBuyClick = (book: Book) => {
     setSelectedBook(book);
-    const initialPrice = book.isCombo ? COMBO_PRICE : PRICE_PER_BOOK;
+    // Tính toán giá khởi điểm chính xác nếu là TCG hoặc Book thông thường
+    let initialPrice = book.isCombo ? COMBO_PRICE : PRICE_PER_BOOK;
+    if (book.isTCG && book.tcgPrice) {
+      initialPrice = book.tcgPrice;
+    }
     setTotalAmount(initialPrice);
     form.setFieldsValue({ quantity: 1, volume: book.title });
     setIsConfirmOpen(true);
@@ -79,17 +97,22 @@ export default function GamePage() {
 
   const onValuesChange = (changedValues: Partial<OrderFormValues>, allValues: OrderFormValues) => {
     const isCurrentCombo = allValues.volume === "FULL COMBO VOL 1-16";
-    const basePrice = isCurrentCombo ? COMBO_PRICE : PRICE_PER_BOOK;
-    
+
+    // Định cấu hình tính toán động khi user thay đổi item trong Select Dropdown của Modal
+    let basePrice = isCurrentCombo ? COMBO_PRICE : PRICE_PER_BOOK;
+    if (allValues.volume === "UNION ARENA BOOSTER BOX") basePrice = PRICE_TCG_BOX;
+    if (allValues.volume === "UNION ARENA STARTER DECK") basePrice = PRICE_TCG_DECK;
+    if (allValues.volume === "UNION ARENA SINGLE PACK") basePrice = PRICE_TCG_PACK;
+
     if (changedValues.quantity !== undefined || changedValues.volume !== undefined) {
       setTotalAmount(allValues.quantity * basePrice);
     }
   };
 
   const handleFinish = (values: OrderFormValues) => {
-    const emailTo = "daongoc.phuongmy308@gmail.com"; 
+    const emailTo = "daongoc.phuongmy308@gmail.com";
     const subject = encodeURIComponent(`Order: ${values.volume}`);
-    
+
     const body = encodeURIComponent(
       `Name: ${values.name}\n` +
       `Address: ${values.address}\n` +
@@ -100,7 +123,7 @@ export default function GamePage() {
     );
 
     window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
-    
+
     setIsInfoOpen(false);
     form.resetFields();
   };
@@ -108,22 +131,24 @@ export default function GamePage() {
   return (
     <section className="bg-white min-h-screen text-black selection:bg-[#df2531] selection:text-white pb-20">
       <style jsx global>{`
-        .book-pagination .swiper-pagination-bullet { background: #000 !important; opacity: 0.3; width: 12px; height: 12px; }
-        .book-pagination .swiper-pagination-bullet-active { background: #df2531 !important; opacity: 1; }
+        .book-pagination .swiper-pagination-bullet,
+        .tcg-pagination .swiper-pagination-bullet { background: #000 !important; opacity: 0.3; width: 12px; height: 12px; }
+        .book-pagination .swiper-pagination-bullet-active,
+        .tcg-pagination .swiper-pagination-bullet-active { background: #df2531 !important; opacity: 1; }
         .ant-btn-primary { background-color: #df2531 !important; border-color: #df2531 !important; }
       `}</style>
 
-        {/* Game */}
+      {/* Game */}
       <div className="py-20 px-6 md:px-20 lg:px-32 bg-white flex flex-col items-center justify-center text-center">
         <h1 className="text-6xl md:text-8xl font-black uppercase tracking-tighter italic">
           The <br className="md:hidden" /> Game
         </h1>
         <div className="h-2 w-24 bg-[#df2531] mt-6"></div>
       </div>
-      
+
       <div className="max-w-7xl mx-auto px-6 mt-16">
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
-          
+
           <div className="w-full lg:w-3/5">
             <div className="relative aspect-video border-4 border-black shadow-[15px_15px_0px_0px_#df2531] overflow-hidden bg-black">
               <video className="w-full h-full object-cover" controls autoPlay loop muted>
@@ -189,14 +214,13 @@ export default function GamePage() {
               <SwiperSlide key={book.id}>
                 <div className={`border-[3px] border-black rounded-[40px] p-8 flex flex-col items-center bg-white hover:border-[#df2531] group/card transition-all ${book.isCombo ? 'ring-2 ring-[#df2531] border-[#df2531]' : ''}`}>
                   <div className="relative w-full h-56 mb-6">
-                    <Image 
+                    <Image
                       // Kiểm tra: nếu là combo thì lấy ảnh theo index comboIdx, ngược lại lấy ảnh đơn
-                      src={Array.isArray(book.image) ? book.image[comboIdx] : book.image} 
-                      alt={book.title} 
-                      fill 
-                      className="object-contain transition-all duration-500 group-hover/card:scale-105" 
+                      src={Array.isArray(book.image) ? book.image[comboIdx] : book.image}
+                      alt={book.title}
+                      fill
+                      className="object-contain transition-all duration-500 group-hover/card:scale-105"
                     />
-                    {/* Chỉ hiện indicator nếu là combo */}
                     {book.isCombo && (
                       <div className="absolute -bottom-2.5 flex gap-1 justify-center w-full">
                         {comboImages.map((_, i) => (
@@ -218,6 +242,57 @@ export default function GamePage() {
           <button className="book-prev absolute -left-4 md:-left-8 top-[40%] text-3xl font-black hover:text-[#df2531]">←</button>
           <button className="book-next absolute -right-4 md:-right-8 top-[40%] w-12 h-12 border-2 border-[#df2531] rounded-full text-[#df2531] font-bold hover:bg-[#df2531] hover:text-white transition-all">→</button>
           <div className="book-pagination flex justify-center gap-3 mt-4"></div>
+        </div>
+
+        <div className="flex justify-center mt-12">
+          <Link href="/books" className="px-14 py-4 bg-[#df2531] text-white font-black text-2xl rounded-full border-2 border-black hover:bg-black transition-all uppercase">
+            More
+          </Link>
+        </div>
+      </div>
+
+      {/* Trading Card Game Section */}
+      <div className="max-w-7xl mx-auto px-6 mt-32 relative">
+        <div className="py-20 px-6 md:px-20 lg:px-32 bg-white flex flex-col items-center justify-center text-center mb-16">
+          <h2 className="text-6xl md:text-8xl font-black uppercase tracking-tighter italic text-center leading-tight">
+            Trading Card <br className="sm:hidden" /> Game
+          </h2>
+          <div className="h-2 w-24 bg-[#df2531] mt-6"></div>
+        </div>
+        <div className="relative group px-12">
+          <Swiper
+            modules={[Navigation, Pagination]}
+            navigation={{ prevEl: '.tcg-prev', nextEl: '.tcg-next' }}
+            pagination={{ clickable: true, el: '.tcg-pagination' }}
+            spaceBetween={30}
+            slidesPerView={1}
+            breakpoints={{ 640: { slidesPerView: 2 }, 1024: { slidesPerView: 3 } }}
+            className="pb-20"
+          >
+            {tcgList.map((card) => (
+              <SwiperSlide key={card.id}>
+                <div className="border-[3px] border-black rounded-[40px] p-8 flex flex-col items-center bg-white hover:border-[#df2531] group/card transition-all">
+                  <div className="relative w-full h-56 mb-6">
+                    <Image
+                      src={card.image as string}
+                      alt={card.title}
+                      fill
+                      className="object-contain transition-all duration-500 group-hover/card:scale-105"
+                    />
+                  </div>
+                  <span className="px-6 py-2 border-2 border-black rounded-full font-bold uppercase text-xs mb-4 text-center group-hover/card:bg-[#df2531] group-hover/card:text-white transition-all">
+                    {card.title}
+                  </span>
+                  <button onClick={() => handleBuyClick(card)} className="px-8 py-2 bg-black text-white font-bold rounded-full hover:bg-[#df2531] uppercase text-xs">
+                    Buy Now
+                  </button>
+                </div>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+          <button className="tcg-prev absolute -left-4 md:-left-8 top-[40%] text-3xl font-black hover:text-[#df2531]">←</button>
+          <button className="tcg-next absolute -right-4 md:-right-8 top-[40%] w-12 h-12 border-2 border-[#df2531] rounded-full text-[#df2531] font-bold hover:bg-[#df2531] hover:text-white transition-all">→</button>
+          <div className="tcg-pagination flex justify-center gap-3 mt-4"></div>
         </div>
       </div>
 
@@ -253,12 +328,19 @@ export default function GamePage() {
               <Input placeholder="Your phone number" />
             </Form.Item>
             <div className="flex gap-4">
-              <Form.Item name="volume" label="Select Vol" className="flex-1">
+              <Form.Item name="volume" label="Select Item" className="flex-1">
                 <Select>
-                  <Select.Option value="FULL COMBO VOL 1-16">Combo Vol 1-16</Select.Option>
-                  {[...Array(16)].map((_, i) => (
-                    <Select.Option key={i+1} value={`Tokyo Ghoul RE Vol ${i+1}`}>Vol {i+1}</Select.Option>
-                  ))}
+                  <Select.OptGroup label="Manga Books">
+                    <Select.Option value="FULL COMBO VOL 1-16">Combo Vol 1-16</Select.Option>
+                    {[...Array(16)].map((_, i) => (
+                      <Select.Option key={i + 1} value={`Tokyo Ghoul RE Vol ${i + 1}`}>Vol {i + 1}</Select.Option>
+                    ))}
+                  </Select.OptGroup>
+                  <Select.OptGroup label="Trading Card Game">
+                    <Select.Option value="UNION ARENA BOOSTER BOX">Booster Box</Select.Option>
+                    <Select.Option value="UNION ARENA STARTER DECK">Starter Deck</Select.Option>
+                    <Select.Option value="UNION ARENA SINGLE PACK">Single Pack</Select.Option>
+                  </Select.OptGroup>
                 </Select>
               </Form.Item>
               <Form.Item name="quantity" label="Quantity" className="w-24">
@@ -280,12 +362,6 @@ export default function GamePage() {
           </div>
         </div>
       </Modal>
-
-      <div className="flex justify-center mt-12">
-        <Link href="/books" className="px-14 py-4 bg-[#df2531] text-white font-black text-2xl rounded-full border-2 border-black hover:bg-black transition-all uppercase">
-          More
-        </Link>
-      </div>
     </section>
   );
 }
